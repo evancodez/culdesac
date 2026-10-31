@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>cul-de-sac</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./style.css" />
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/addons/" } }
+  </script>
+</head>
+<body data-device="kbm">
+  <canvas id="c"></canvas>
+
+  <section id="title" class="overlay">
+    <div class="rings"></div>
+    <div class="wordmark">
+      <h1>cul-de-sac</h1>
+      <p class="sub">a perspective puzzle in three houses</p>
+    </div>
+    <p id="press" class="press">press any key</p>
+    <div class="menu">
+      <button data-act="begin">Begin</button>
+      <button data-act="houses">Houses</button>
+      <button data-act="settings">Settings</button>
+      <button data-act="controls">Controls</button>
+    </div>
+    <p class="foot">best with headphones · keyboard &amp; mouse or a PS5 controller</p>
+  </section>
+
+  <section id="houses" class="panel">
+    <h2>Houses</h2>
+    <div class="list"></div>
+    <button data-act="back" class="back">Back</button>
+  </section>
+
+  <section id="settings" class="panel">
+    <h2>Settings</h2>
+    <label>Volume <input type="range" min="0" max="1" step="0.05" data-key="master" /></label>
+    <label>Music <input type="range" min="0" max="1" step="0.05" data-key="music" /></label>
+    <label>Sounds <input type="range" min="0" max="1" step="0.05" data-key="sfx" /></label>
+    <label>Camera speed <input type="range" min="0.4" max="2" step="0.1" data-key="sensitivity" /></label>
+    <label class="check">Invert vertical look <input type="checkbox" data-key="invertY" /></label>
+    <label class="check">Transitions &amp; screen effects <input type="checkbox" data-key="motion" /></label>
+    <button data-act="back" class="back">Back</button>
+  </section>
+
+  <section id="controls" class="panel wide">
+    <h2>Controls</h2>
+    <table>
+      <tr><th></th><th>Keyboard &amp; mouse</th><th>PS5 controller</th></tr>
+      <tr><td>Walk</td><td>W A S D · click a tile</td><td>Left stick · D-pad</td></tr>
+      <tr><td>Look around</td><td>drag · arrow keys · Q / E</td><td>Right stick</td></tr>
+      <tr><td>Zoom</td><td>scroll · − / =</td><td>L2 / R2</td></tr>
+      <tr><td>Interact</td><td>Space</td><td>✕</td></tr>
+      <tr><td>Undo</td><td>Z</td><td>□</td></tr>
+      <tr><td>Hint</td><td>H</td><td>△</td></tr>
+      <tr><td>Restart house</td><td>hold R</td><td>hold Create</td></tr>
+      <tr><td>Recenter view</td><td>C</td><td>R3</td></tr>
+      <tr><td>Pause</td><td>Esc</td><td>Options</td></tr>
+    </table>
+    <p class="rule">The one rule: <em>if it looks connected, it is.</em></p>
+    <button data-act="back" class="back">Back</button>
+  </section>
+
+  <section id="pause" class="panel">
+    <h2>Paused</h2>
+    <button data-act="resume">Resume</button>
+    <button data-act="restart">Restart house</button>
+    <button data-act="houses">Houses</button>
+    <button data-act="settings">Settings</button>
+    <button data-act="controls">Controls</button>
+    <button data-act="title">Leave to title</button>
+  </section>
+
+  <section id="ending" class="overlay">
+    <div class="wordmark">
+      <h1>home</h1>
+      <p class="sub">every street is a cul-de-sac if you walk it long enough</p>
+    </div>
+    <div class="end-foot">
+      <button data-act="again">Back to the street</button>
+      <p class="credits">made with three.js · sounds made of math · after Hayden Clay, Beach House’s <em>7</em>, and the McGloughlin Brothers</p>
+    </div>
+  </section>
+
+  <div id="card"><span class="no"></span><span class="nm"></span><span class="qt"></span></div>
+  <div id="prompt"></div>
+  <div id="toast"></div>
+  <div id="hint-arrow"><span class="arrow"><svg viewBox="0 0 48 24" width="56" height="28"><path d="M2 12 H38 M28 3 L42 12 L28 21" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="lbl"></span></div>
+  <div id="hud">
+    <span class="h undo">undo <b class="kb">Z</b><b class="pd">□</b></span>
+    <span class="h">hint <b class="kb">H</b><b class="pd">△</b></span>
+    <span class="h">pause <b class="kb">Esc</b><b class="pd">Options</b></span>
+  </div>
+  <div id="restart-ring"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" /></svg><span>restart</span></div>
+  <noscript>This game needs JavaScript and WebGL2.</noscript>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

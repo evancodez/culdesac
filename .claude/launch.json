@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "cul-de-sac",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["/Users/evansmac/Downloads/eprojects/beautiful illusions/tools/serve.mjs", "5173"],
+      "port": 5173
+    }
+  ]
+}

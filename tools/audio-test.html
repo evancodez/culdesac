@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cul-de-sac audio test</title>
+<style>
+  :root { --bg: #1d1a24; --panel: #2a2633; --ink: #efe8f5; --dim: #a79fb3; --accent: #f3b6c8; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--ink); font: 14px/1.4 system-ui, sans-serif; }
+  h1 { font-size: 18px; margin: 0 0 12px; font-weight: 600; }
+  section { background: var(--panel); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); margin: 0 0 8px; }
+  button { background: #3a3446; color: var(--ink); border: 1px solid #4a4358; border-radius: 6px; padding: 6px 10px; margin: 3px; cursor: pointer; font: inherit; }
+  button:hover { border-color: var(--accent); }
+  button.on { background: var(--accent); color: #2a2030; }
+  label { display: inline-flex; align-items: center; gap: 8px; margin: 4px 14px 4px 0; }
+  input[type=range] { width: 180px; }
+  .row { display: flex; flex-wrap: wrap; align-items: center; }
+  #state { font: 12px/1.4 ui-monospace, monospace; color: var(--dim); white-space: pre-wrap; }
+  #meter { height: 10px; background: #0003; border-radius: 5px; overflow: hidden; width: 100%; max-width: 420px; }
+  #meter > div { height: 100%; width: 0; background: linear-gradient(90deg, #9fd6c9, #f3b6c8); }
+  output { min-width: 3em; color: var(--dim); }
+</style>
+</head>
+<body>
+<h1>Cul-de-sac — audio test</h1>
+
+<section>
+  <h2>Engine</h2>
+  <div class="row">
+    <button id="init">init()</button>
+    <button id="pause">setPaused(false)</button>
+    <label>fade <input id="fade" type="number" value="3" min="0" max="20" step="0.5" style="width:4em"> s</label>
+  </div>
+  <div class="row">
+    <label>master <input id="vMaster" type="range" min="0" max="1" step="0.01" value="0.8"><output>0.80</output></label>
+    <label>music <input id="vMusic" type="range" min="0" max="1" step="0.01" value="0.7"><output>0.70</output></label>
+    <label>sfx <input id="vSfx" type="range" min="0" max="1" step="0.01" value="0.8"><output>0.80</output></label>
+    <label>ambience <input id="vAmb" type="range" min="0" max="1" step="0.01" value="1"><output>1.00</output></label>
+  </div>
+  <div id="meter"><div></div></div>
+  <div id="state">not initialized</div>
+</section>
+
+<section>
+  <h2>Mood</h2>
+  <div class="row" id="moods"></div>
+  <div class="row">
+    <label>setUndersideBlend <input id="blend" type="range" min="0" max="1" step="0.01" value="0"><output>0.00</output></label>
+    <label>setAlignment <input id="align" type="range" min="0" max="1" step="0.01" value="0"><output>0.00</output></label>
+    <button id="alignSweep">alignment sweep</button>
+  </div>
+</section>
+
+<section>
+  <h2>Footsteps</h2>
+  <div class="row" id="steps"></div>
+  <div class="row"><button id="walk">walk (auto steps)</button></div>
+</section>
+
+<section>
+  <h2>SFX</h2>
+  <div class="row" id="sfx"></div>
+</section>
+
+<script type="module">
+import { audio } from '../src/core/audio.js';
+window.audio = audio;
+
+const $ = (id) => document.getElementById(id);
+const btn = (parent, label, fn) => {
+  const b = document.createElement('button');
+  b.textContent = label;
+  b.addEventListener('click', () => fn(b));
+  parent.appendChild(b);
+  return b;
+};
+
+let analyser = null;
+let buf = null;
+$('init').addEventListener('click', async () => {
+  await audio.init();
+  if (!analyser && audio.ctx && audio.output) {
+    analyser = audio.ctx.createAnalyser();
+    analyser.fftSize = 2048;
+    buf = new Float32Array(analyser.fftSize);
+    audio.output.connect(analyser);
+  }
+});
+
+let paused = false;
+$('pause').addEventListener('click', (e) => {
+  paused = !paused;
+  audio.setPaused(paused);
+  e.target.textContent = `setPaused(${paused})`;
+  e.target.classList.toggle('on', paused);
+});
+
+for (const [id, fn] of [['vMaster', 'setMasterVolume'], ['vMusic', 'setMusicVolume'], ['vSfx', 'setSfxVolume'], ['vAmb', 'setAmbienceVolume']]) {
+  const el = $(id);
+  el.addEventListener('input', () => { audio[fn](+el.value); el.nextElementSibling.value = (+el.value).toFixed(2); });
+}
+
+const moodButtons = {};
+for (const m of ['title', 'morning', 'noon', 'dusk', 'underside', 'ending', 'silence']) {
+  moodButtons[m] = btn($('moods'), m, () => {
+    audio.setMood(m, { fade: +$('fade').value });
+    for (const k in moodButtons) moodButtons[k].classList.toggle('on', k === m);
+  });
+}
+
+$('blend').addEventListener('input', (e) => { audio.setUndersideBlend(+e.target.value); e.target.nextElementSibling.value = (+e.target.value).toFixed(2); });
+$('align').addEventListener('input', (e) => { e.target.nextElementSibling.value = (+e.target.value).toFixed(2); });
+
+// setAlignment / setUndersideBlend are per-frame calls in the game: drive them from rAF here too.
+let sweepT0 = -1;
+$('alignSweep').addEventListener('click', () => { sweepT0 = performance.now(); });
+
+for (const s of ['grass', 'mown', 'stone', 'wood', 'road']) btn($('steps'), `step('${s}')`, () => audio.step(s));
+let walkTimer = null;
+$('walk').addEventListener('click', (e) => {
+  if (walkTimer) { clearInterval(walkTimer); walkTimer = null; e.target.classList.remove('on'); return; }
+  const surfaces = ['grass', 'mown', 'stone', 'wood', 'road'];
+  let i = 0;
+  walkTimer = setInterval(() => audio.step(surfaces[Math.floor(i++ / 8) % surfaces.length]), 420);
+  e.target.classList.add('on');
+});
+
+const sfx = $('sfx');
+btn(sfx, 'kick()', () => audio.kick());
+btn(sfx, 'mowerStart()', () => audio.mowerStart());
+btn(sfx, 'mowerRun(true)', () => audio.mowerRun(true));
+btn(sfx, 'mowerRun(false)', () => audio.mowerRun(false));
+btn(sfx, 'mowerStop()', () => audio.mowerStop());
+btn(sfx, 'bump()', () => audio.bump());
+btn(sfx, 'lock()', () => audio.lock());
+btn(sfx, 'morph(1.5)', () => audio.morph(1.5));
+btn(sfx, 'morph(4)', () => audio.morph(4));
+btn(sfx, 'fold()', () => audio.fold());
+btn(sfx, 'flip()', () => audio.flip());
+btn(sfx, 'door()', () => audio.door());
+btn(sfx, 'levelComplete()', () => audio.levelComplete());
+btn(sfx, 'uiMove()', () => audio.uiMove());
+btn(sfx, 'uiSelect()', () => audio.uiSelect());
+btn(sfx, 'uiBack()', () => audio.uiBack());
+btn(sfx, 'undo()', () => audio.undo());
+btn(sfx, 'hint()', () => audio.hint());
+
+let peakHold = 0;
+function frame(now) {
+  let a = +$('align').value;
+  if (sweepT0 >= 0) {
+    const k = (now - sweepT0) / 6000;
+    if (k >= 1) sweepT0 = -1;
+    a = Math.max(0, Math.sin(Math.min(1, k) * Math.PI));
+    $('align').value = a;
+    $('align').nextElementSibling.value = a.toFixed(2);
+  }
+  audio.setAlignment(a);
+  if (analyser) {
+    analyser.getFloatTimeDomainData(buf);
+    let sum = 0;
+    let peak = 0;
+    for (let i = 0; i < buf.length; i++) { sum += buf[i] * buf[i]; peak = Math.max(peak, Math.abs(buf[i])); }
+    const rms = Math.sqrt(sum / buf.length);
+    peakHold = Math.max(peak, peakHold * 0.97);
+    window.__meter = { rms, peak: peakHold };
+    $('meter').firstElementChild.style.width = Math.min(100, rms * 300) + '%';
+  }
+  const st = audio.getState();
+  $('state').textContent = JSON.stringify(st, null, 0) + (window.__meter ? `\nrms ${window.__meter.rms.toFixed(4)}  peak ${window.__meter.peak.toFixed(3)}` : '');
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

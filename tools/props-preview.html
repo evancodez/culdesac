@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cul-de-sac · Props Preview</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #bfe0f5; font-family: Helvetica, Arial, sans-serif; }
+  canvas { display: block; touch-action: none; }
+  #labels { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+  .lbl { position: absolute; transform: translate(-50%, -100%); font-size: 11px; line-height: 1.2; color: #24384a;
+         background: rgba(255, 255, 255, 0.72); padding: 2px 7px; border-radius: 9px; white-space: nowrap;
+         pointer-events: auto; cursor: pointer; user-select: none; }
+  .lbl small { color: #6a7d8c; }
+  #hud { position: fixed; left: 10px; top: 10px; font-size: 12px; color: #24384a; background: rgba(255, 255, 255, 0.78);
+         padding: 8px 10px; border-radius: 10px; max-width: calc(100vw - 40px); }
+  #hud label { margin-left: 8px; }
+  #hud button { margin-left: 8px; font: inherit; }
+  #err { position: fixed; left: 10px; bottom: 10px; color: #a01818; background: #fff; padding: 6px 10px; border-radius: 8px; display: none; white-space: pre-wrap; max-width: 90vw; }
+</style>
+<script type="importmap">{"imports":{"three":"../vendor/three/three.module.js","three/addons/":"../vendor/three/addons/"}}</script>
+</head>
+<body>
+<div id="labels"></div>
+<div id="hud">
+  drag: orbit · right / shift-drag: pan · wheel: zoom · click a label to focus
+  <label><input type="checkbox" id="optLabels" checked> labels</label>
+  <label><input type="checkbox" id="optEnv"> env light</label>
+  <label><input type="checkbox" id="optAnim" checked> animate</label>
+  <button id="btnReset">overview</button>
+  <button id="btnIso">iso</button>
+</div>
+<div id="err"></div>
+<script type="module">
+import * as THREE from 'three';
+import * as P from '../src/world/props.js';
+
+const errBox = document.getElementById('err');
+window.addEventListener('error', (e) => { errBox.style.display = 'block'; errBox.textContent += (e.message || e) + '\n'; });
+
+// ---------------------------------------------------------------- renderer
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
+const W = () => Math.max(1, innerWidth), Hh = () => Math.max(1, innerHeight);
+renderer.setSize(W(), Hh());
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFShadowMap; // r187: PCFSoftShadowMap was removed; PCF + shadow.radius is soft
+document.body.appendChild(renderer.domElement);
+
+const SKY = new THREE.Color('#bfe0f5');
+const scene = new THREE.Scene();
+scene.background = SKY;
+scene.fog = new THREE.Fog(SKY, 45, 120);
+
+const hemi = new THREE.HemisphereLight('#d8ecff', '#6f8f5a', 1.25);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight('#fff1dc', 2.4);
+sun.position.set(9, 14, 7);
+sun.castShadow = true;
+sun.shadow.mapSize.set(4096, 4096);
+sun.shadow.bias = -0.0004;
+sun.shadow.normalBias = 0.02;
+sun.shadow.radius = 4;
+sun.shadow.blurSamples = 12;
+scene.add(sun);
+scene.add(sun.target);
+
+// ------------------------------------------------------------------ ground
+function stripeTexture() {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = '#79b85e'; g.fillRect(0, 0, 256, 256);
+  g.fillStyle = '#86c468'; g.fillRect(0, 0, 128, 256);
+  // soft speckle
+  for (let i = 0; i < 2500; i++) {
+    const x = Math.random() * 256, y = Math.random() * 256;
+    g.fillStyle = `rgba(${Math.random() < 0.5 ? '40,90,40' : '200,240,170'},0.06)`;
+    g.fillRect(x, y, 2, 2);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(30, 30);
+  t.anisotropy = 8;
+  return t;
+}
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), new THREE.MeshStandardMaterial({ color: '#ffffff', map: stripeTexture(), roughness: 1 }));
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// ------------------------------------------------------------------- props
+const rows = [
+  [
+    ['cherryTree', () => P.makeCherryTree({ seed: 1 })],
+    ['cherryTree seed 2', () => P.makeCherryTree({ seed: 2, height: 2.8 })],
+    ['cherryTree seed 3', () => P.makeCherryTree({ seed: 3, color: '#f4a3be' })],
+    ['roundTree', () => P.makeRoundTree({ seed: 1 })],
+    ['roundTree seed 2', () => P.makeRoundTree({ seed: 2, height: 2.4, color: '#4a9a50' })],
+    ['telephonePole', () => P.makeTelephonePole({ transformer: true })],
+    ['lampPost', () => P.makeLampPost({ lit: true })],
+    ['lampPost unlit', () => P.makeLampPost({ lit: false })],
+  ],
+  [
+    ['car', () => P.makeCar({ seed: 1 })],
+    ['car pink', () => P.makeCar({ color: '#f2b8c6', seed: 2 })],
+    ['car cream', () => P.makeCar({ color: '#f1e3b8', seed: 4 })],
+    ['picketFence (gap)', () => P.makePicketFence(4, { gaps: [[1.6, 2.4]] })],
+    ['hedge 2×0.8', () => P.makeHedge({ w: 2, d: 0.8, h: 0.8 })],
+    ['hedge 1×1', () => P.makeHedge({ seed: 3 })],
+    ['shrub', () => P.makeShrub({ seed: 1 })],
+    ['shrub flowers', () => P.makeShrub({ seed: 2, flowers: '#f4a6c4' })],
+    ['shrub big', () => P.makeShrub({ seed: 4, size: 0.9, flowers: '#fff3a8' })],
+  ],
+  [
+    ['lawnMower', () => { const m = P.makeLawnMower(); m.userData.running = true; return m; }],
+    ['lawnMower bag', () => P.makeLawnMower({ bag: true })],
+    ['mailbox 42', () => P.makeMailbox({ number: '42' })],
+    ['mailbox flag up', () => P.makeMailbox({ number: '7', color: '#c9d9cf', flagUp: true })],
+    ['stopSign', () => P.makeStopSign()],
+    ['gnome', () => P.makeGnome({ seed: 1 })],
+    ['gnome 2', () => P.makeGnome({ seed: 2 })],
+    ['flamingo', () => P.makeFlamingo({ seed: 1 })],
+    ['birdbath', () => P.makeBirdbath()],
+    ['trashCan', () => P.makeTrashCan()],
+    ['fireHydrant', () => P.makeFireHydrant()],
+    ['bench', () => P.makeBench()],
+    ['sprinkler', () => P.makeSprinkler()],
+    ['dandelions', () => P.makeDandelions({ seed: 1 })],
+  ],
+];
+
+const items = [];
+const labelsEl = document.getElementById('labels');
+let zCursor = 0;
+const GAP = 0.7;
+for (let ri = rows.length - 1; ri >= 0; ri--) {
+  const built = rows[ri].map(([name, fn]) => {
+    const obj = fn();
+    const box = new THREE.Box3().setFromObject(obj);
+    return { name, obj, box };
+  });
+  const totalW = built.reduce((s, b) => s + (b.box.max.x - b.box.min.x), 0) + GAP * (built.length - 1);
+  const depth = Math.max(...built.map((b) => b.box.max.z - b.box.min.z));
+  let x = -totalW / 2;
+  for (const b of built) {
+    const w = b.box.max.x - b.box.min.x;
+    b.obj.position.set(x - b.box.min.x, 0, zCursor - (b.box.max.z + b.box.min.z) / 2);
+    scene.add(b.obj);
+    x += w + GAP;
+    items.push(b);
+  }
+  zCursor -= depth + 1.4;
+}
+// a couple of clouds overhead
+for (const [i, cfg] of [[0, { seed: 1, scale: 1 }], [1, { seed: 2, scale: 0.8 }]].entries()) {
+  const c = P.makeCloud(cfg[1]);
+  c.position.set(-6 + i * 11, 6.5 + i * 0.8, zCursor - 2);
+  scene.add(c);
+  items.push({ name: 'cloud seed ' + cfg[1].seed, obj: c });
+}
+
+function triCount(obj) {
+  let t = 0;
+  obj.traverse((o) => {
+    if (!o.isMesh) return;
+    const g = o.geometry;
+    const n = (g.index ? g.index.count : g.attributes.position.count) / 3;
+    t += n * (o.isInstancedMesh ? o.count : 1);
+  });
+  return t;
+}
+
+const sceneBox = new THREE.Box3();
+for (const it of items) {
+  it.obj.updateMatrixWorld(true);
+  it.box = new THREE.Box3().setFromObject(it.obj);
+  if (!it.name.startsWith('cloud')) sceneBox.union(it.box);
+  it.tris = triCount(it.obj);
+  const el = document.createElement('div');
+  el.className = 'lbl';
+  el.innerHTML = `${it.name} <small>${(it.tris / 1000).toFixed(1)}k△</small>`;
+  el.addEventListener('click', () => focus(it.name));
+  labelsEl.appendChild(el);
+  it.el = el;
+}
+
+// fit shadow camera to the layout
+const sceneCenter = sceneBox.getCenter(new THREE.Vector3());
+const sceneSize = sceneBox.getSize(new THREE.Vector3());
+const ext = Math.max(sceneSize.x, sceneSize.z) * 0.6 + 2;
+sun.target.position.copy(sceneCenter).setY(0);
+sun.position.copy(sceneCenter).add(new THREE.Vector3(9, 14, 7));
+Object.assign(sun.shadow.camera, { left: -ext, right: ext, top: ext, bottom: -ext, near: 0.5, far: 60 });
+sun.shadow.camera.updateProjectionMatrix();
+
+// ------------------------------------------------------------- environment
+let envTex = null;
+function makeEnv() {
+  const s = new THREE.Scene();
+  const geo = new THREE.SphereGeometry(10, 32, 16);
+  const cols = [];
+  const pos = geo.attributes.position;
+  const top = new THREE.Color('#bcdcff'), mid = new THREE.Color('#ffffff'), bot = new THREE.Color('#78a862');
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i) / 10;
+    const c = y > 0 ? mid.clone().lerp(top, y) : mid.clone().lerp(bot, Math.min(1, -y * 3));
+    cols.push(c.r, c.g, c.b);
+  }
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+  s.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide })));
+  const pm = new THREE.PMREMGenerator(renderer);
+  return pm.fromScene(s, 0.04).texture;
+}
+document.getElementById('optEnv').addEventListener('change', (e) => {
+  if (e.target.checked && !envTex) envTex = makeEnv();
+  scene.environment = e.target.checked ? envTex : null;
+});
+document.getElementById('optLabels').addEventListener('change', (e) => { labelsEl.style.display = e.target.checked ? '' : 'none'; });
+
+// ------------------------------------------------------- hand-rolled orbit
+const camera = new THREE.PerspectiveCamera(32, W() / Hh(), 0.05, 300);
+const orbit = { target: new THREE.Vector3(), az: Math.PI / 4, el: 0.62, dist: 30 };
+function applyCam() {
+  orbit.el = Math.max(0.03, Math.min(1.55, orbit.el));
+  orbit.dist = Math.max(0.4, Math.min(140, orbit.dist));
+  const ce = Math.cos(orbit.el);
+  camera.position.set(
+    orbit.target.x + orbit.dist * ce * Math.sin(orbit.az),
+    orbit.target.y + orbit.dist * Math.sin(orbit.el),
+    orbit.target.z + orbit.dist * ce * Math.cos(orbit.az),
+  );
+  camera.lookAt(orbit.target);
+}
+function overview() {
+  orbit.target.copy(sceneCenter).setY(0.5);
+  orbit.az = 0.35; orbit.el = 0.62;
+  orbit.dist = Math.max(sceneSize.x, sceneSize.z) * 0.62 / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) / Math.max(1, camera.aspect) + 2;
+  applyCam();
+}
+function focus(name, { dist, az, el } = {}) {
+  const it = items.find((i) => i.name === name) || items.find((i) => i.name.toLowerCase().startsWith(String(name).toLowerCase()));
+  if (!it) return false;
+  const c = it.box.getCenter(new THREE.Vector3());
+  const s = it.box.getSize(new THREE.Vector3());
+  orbit.target.copy(c);
+  orbit.dist = dist ?? Math.max(s.x, s.y, s.z) * 2.6 + 0.6;
+  if (az !== undefined) orbit.az = az;
+  if (el !== undefined) orbit.el = el;
+  applyCam();
+  return true;
+}
+document.getElementById('btnReset').addEventListener('click', overview);
+document.getElementById('btnIso').addEventListener('click', () => { orbit.az = Math.PI / 4; orbit.el = Math.atan(1 / Math.SQRT2); applyCam(); });
+
+const el = renderer.domElement;
+let drag = null;
+el.addEventListener('contextmenu', (e) => e.preventDefault());
+el.addEventListener('pointerdown', (e) => {
+  el.setPointerCapture(e.pointerId);
+  drag = { x: e.clientX, y: e.clientY, pan: e.button === 2 || e.shiftKey || e.button === 1 };
+});
+el.addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  drag.x = e.clientX; drag.y = e.clientY;
+  if (drag.pan) {
+    const k = orbit.dist * 0.0016;
+    const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0);
+    const fwd = new THREE.Vector3(Math.sin(orbit.az), 0, Math.cos(orbit.az));
+    orbit.target.addScaledVector(right, -dx * k).addScaledVector(fwd, -dy * k);
+  } else {
+    orbit.az -= dx * 0.006;
+    orbit.el += dy * 0.005;
+  }
+  applyCam();
+});
+el.addEventListener('pointerup', () => { drag = null; });
+el.addEventListener('wheel', (e) => { e.preventDefault(); orbit.dist *= Math.exp(e.deltaY * 0.0012); applyCam(); }, { passive: false });
+addEventListener('resize', () => {
+  renderer.setSize(W(), Hh());
+  camera.aspect = W() / Hh();
+  camera.updateProjectionMatrix();
+});
+
+// URL params: ?focus=lawnMower&dist=2.5&az=0.8&el=0.5
+const qs = new URLSearchParams(location.search);
+overview();
+if (qs.has('focus')) {
+  focus(qs.get('focus'), {
+    dist: qs.has('dist') ? +qs.get('dist') : undefined,
+    az: qs.has('az') ? +qs.get('az') : undefined,
+    el: qs.has('el') ? +qs.get('el') : undefined,
+  });
+}
+if (qs.get('env') === '1') { const cb = document.getElementById('optEnv'); cb.checked = true; cb.dispatchEvent(new Event('change')); }
+
+// -------------------------------------------------------------------- loop
+let last = performance.now();
+let t = 0;
+const tmp = new THREE.Vector3();
+function frame() {
+  const now = performance.now();
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  if (document.getElementById('optAnim').checked) {
+    t += dt;
+    for (const it of items) it.obj.userData.update?.(t, dt);
+  }
+  renderer.render(scene, camera);
+  if (labelsEl.style.display !== 'none') {
+    for (const it of items) {
+      tmp.set((it.box.min.x + it.box.max.x) / 2, it.box.max.y + 0.08, (it.box.min.z + it.box.max.z) / 2).project(camera);
+      const vis = tmp.z < 1 && Math.abs(tmp.x) < 1.1 && Math.abs(tmp.y) < 1.1;
+      it.el.style.display = vis ? '' : 'none';
+      if (vis) {
+        it.el.style.left = ((tmp.x + 1) / 2) * W() + 'px';
+        it.el.style.top = ((1 - tmp.y) / 2) * Hh() + 'px';
+      }
+    }
+  }
+  requestAnimationFrame(frame);
+}
+frame();
+
+window.__preview = { THREE, scene, camera, renderer, items, orbit, focus, overview, applyCam, props: P };
+</script>
+</body>
+</html>
