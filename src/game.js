@@ -9,11 +9,14 @@ import { FX } from './core/fx.js';
 import { G } from './core/materials.js';
 import { audio } from './core/audio.js';
 import { UI } from './ui.js';
+import { Level0 } from './levels/level0.js';
 import { Level1 } from './levels/level1.js';
 import { Level2 } from './levels/level2.js';
 import { Level3 } from './levels/level3.js';
+import { Level4 } from './levels/level4.js';
+import { Level5 } from './levels/level5.js';
 
-export const LEVELS = [Level1, Level2, Level3];
+export const LEVELS = [Level0, Level1, Level2, Level4, Level3, Level5];
 const STORE = 'culdesac.v1';
 
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -139,7 +142,7 @@ export class Game {
 
   // ------------------------------------------------------------------ flow
   boot() {
-    this.loadLevel(0, { attract: true });
+    this.loadLevel(1, { attract: true });
     this.state = 'title';
     this.ui.showTitle();
     this.post.u.uFade.value = 1;
@@ -169,7 +172,7 @@ export class Game {
       this.ui.levelCard(this.level);
       this.transitionIn();
     };
-    if (this.attract && index === 0) {
+    if (this.attract && index === this.levelIndex) {
       // the title backdrop is already level 1: just fly into the start view
       this.attract = false;
       this.state = 'play';
@@ -256,7 +259,7 @@ export class Game {
   }
 
   ending() {
-    this.loadLevel(2, { attract: true });
+    this.loadLevel(LEVELS.indexOf(Level3), { attract: true });
     this.level.endingView?.();
     this.state = 'ending';
     audio.setMood('ending', { fade: 4 });
@@ -267,7 +270,7 @@ export class Game {
   toTitle() {
     this.ui.hidePause();
     this.transitionOut(() => {
-      this.loadLevel(0, { attract: true });
+      this.loadLevel(1, { attract: true });
       this.state = 'title';
       audio.setMood('title', { fade: 3 });
       this.ui.showTitle();
@@ -307,9 +310,10 @@ export class Game {
 
     for (let i = this.timers.length - 1; i >= 0; i--) {
       const tm = this.timers[i];
+      if (!tm) continue; // a callback may have replaced the list (level load)
       if (this.state === 'pause' && !tm.keep) continue;
       tm.t -= dt;
-      if (tm.t <= 0) { this.timers.splice(i, 1); tm.fn(); }
+      if (tm.t <= 0) { const k = this.timers.indexOf(tm); if (k >= 0) this.timers.splice(k, 1); tm.fn(); }
     }
     for (let i = this.tweens.length - 1; i >= 0; i--) {
       const tw = this.tweens[i];

@@ -28,6 +28,8 @@ export class MorphSet {
     this.mats = [];
     for (const p of pieces) {
       p.mats = isolateMaterials(p.obj);
+      // docked pieces share faces with the world around them: push them back a hair so they never z-fight
+      for (const m of p.mats) { m.polygonOffset = true; m.polygonOffsetFactor = 1; m.polygonOffsetUnits = 3; }
       this.mats.push(...p.mats);
       p.obj.position.copy(p.positions[state]);
       p.phase = Math.random() * Math.PI * 2;

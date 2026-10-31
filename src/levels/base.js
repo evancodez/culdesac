@@ -78,6 +78,9 @@ export class Level {
     u.uVignette.value = gr.vignette ?? 0.32;
     u.uTilt.value = gr.tilt ?? 0.55;
     u.uBW.value = 0;
+    u.uHue.value = gr.hue ?? 0;
+    u.uWarp.value = gr.warp ?? 0;
+    u.uInvert.value = 0;
     this.game.post.renderer.toneMappingExposure = o.exposure ?? 1.0;
     this.game.post.bloom.strength = o.bloom ?? 0.3;
 
@@ -130,6 +133,20 @@ export class Level {
       if (t) t.blocked = true;
     }
     return obj;
+  }
+
+  // hang a prop upside down from the underside (face y = `y`)
+  hang(obj, x, z, faceRot = 0, { opart = false, y = -3 } = {}) {
+    const g = new THREE.Group();
+    g.position.set(x, y, z);
+    g.rotation.x = Math.PI;
+    obj.rotation.y = faceRot;
+    g.add(obj);
+    patchTree(obj);
+    if (opart !== false) opartify(obj, opart);
+    this.scene.add(g);
+    if (obj.userData.update) this.updaters.push(obj.userData.update);
+    return g;
   }
 
   tile(x, y, z, face = 'top') {

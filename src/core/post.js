@@ -28,6 +28,9 @@ const FinalShader = {
     uFadeColor: { value: new THREE.Color('#f7efe6') },
     uFlash: { value: 0 },
     uAberr: { value: 0.0012 },
+    uHue: { value: 0 },
+    uWarp: { value: 0 },
+    uInvert: { value: 0 },
   },
   vertexShader: /* glsl */ `
     varying vec2 vUv;
@@ -35,7 +38,15 @@ const FinalShader = {
   fragmentShader: /* glsl */ `
     uniform sampler2D tDiffuse;
     uniform vec2 uRes;
-    uniform float uTime, uVignette, uGrain, uSat, uContrast, uBW, uTilt, uOp, uSlice, uFade, uFlash, uAberr;
+    uniform float uTime, uVignette, uGrain, uSat, uContrast, uBW, uTilt, uOp, uSlice, uFade, uFlash, uAberr, uHue, uWarp, uInvert;
+    vec3 hueRotate(vec3 c, float a) {
+      const mat3 toY = mat3(0.299, 0.596, 0.211, 0.587, -0.274, -0.523, 0.114, -0.322, 0.312);
+      const mat3 toR = mat3(1.0, 1.0, 1.0, 0.956, -0.272, -1.106, 0.621, -0.647, 1.703);
+      vec3 yiq = toY * c;
+      float s = sin(a), co = cos(a);
+      yiq.yz = mat2(co, s, -s, co) * yiq.yz;
+      return toR * yiq;
+    }
     uniform vec3 uLift, uGain, uFadeColor;
     varying vec2 vUv;
     float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
@@ -50,6 +61,13 @@ const FinalShader = {
     }
     void main() {
       vec2 uv = vUv;
+      // stretchy warp (Beach House-ish), strongest toward the edges
+      if (uWarp > 0.001) {
+        vec2 c = uv - 0.5;
+        float e = 0.35 + dot(c, c) * 2.5;
+        uv.x += sin(uv.y * 9.0 + uTime * 1.1) * uWarp * 0.012 * e;
+        uv.y += sin(uv.x * 7.0 - uTime * 0.9) * uWarp * 0.009 * e;
+      }
       // digi-cut: horizontal strata sliding sideways
       if (uSlice > 0.001) {
         float bands = 18.0 + 30.0 * uSlice;
@@ -85,6 +103,12 @@ const FinalShader = {
       col = mix(vec3(l), col, uSat);
       col = (col - 0.5) * uContrast + 0.5;
       col = col * uGain + uLift;
+      if (abs(uHue) > 0.001) col = hueRotate(col, uHue);
+      if (uInvert > 0.001) {
+        vec3 inv = vec3(1.0) - col;
+        inv = hueRotate(inv, 3.14159);   // invert brightness, keep the hues roughly where they were
+        col = mix(col, inv, uInvert * (1.0 - red));
+      }
       // op-art transition: stretchy black and white rings
       if (uOp > 0.001) {
         vec2 p = (vUv - 0.5) * vec2(uRes.x / uRes.y, 1.0);

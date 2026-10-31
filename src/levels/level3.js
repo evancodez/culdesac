@@ -32,7 +32,7 @@ function streetRows(T, x0, x1, { top = true, under = true } = {}) {
 }
 
 export class Level3 extends Level {
-  static meta = { number: 3, title: 'Underside', quote: 'There is another street beneath this one.' };
+  static meta = { number: 4, title: 'Underside', quote: 'There is another street beneath this one.' };
 
   constructor(game) {
     super(game);
@@ -121,7 +121,7 @@ export class Level3 extends Level {
       FT.buildMeshes(tiles, [], g, null, true);
       // a slab of earth behind the road so the strip reads as a solid piece
       const slab = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.98, 1.98), this.strataMat());
-      slab.position.set(7.36, -0.5 - i, -0.5);
+      slab.position.set(7.33, -0.5 - i, -0.5);
       slab.castShadow = slab.receiveShadow = true;
       g.add(slab);
       strips.push({ obj: g, tiles, k: ks[i] });
@@ -170,7 +170,7 @@ export class Level3 extends Level {
       this.prop(P.makeLampPost({ lit: true }), x, 0.075, z, { rot });
     }
     this.prop(P.makeStopSign(), 6.75, 0.075, -2.3, { rot: Math.PI / 2 });
-    this.prop(P.makeMailbox({ number: '3', color: '#4a3b5c' }), -8.6, 0, -2.6);
+    this.prop(P.makeMailbox({ number: '4', color: '#4a3b5c' }), -8.6, 0, -2.6);
     this.prop(P.makeFireHydrant(), 1.6, 0.075, 1.25);
     this.prop(P.makeCar({ color: '#e8a0b4', seed: 4 }), -4.5, 0.02, -1.05, { rot: Math.PI / 2 });
     this.tile(-5, 0, -1).blocked = true;
@@ -184,16 +184,7 @@ export class Level3 extends Level {
   }
 
   hang(obj, x, z, faceRot = 0, { opart = 1 } = {}) {
-    const g = new THREE.Group();
-    g.position.set(x, -3, z);
-    g.rotation.x = Math.PI;
-    obj.rotation.y = faceRot;
-    g.add(obj);
-    patchTree(obj);
-    if (opart !== false) opartify(obj, opart);
-    this.scene.add(g);
-    if (obj.userData.update) this.updaters.push(obj.userData.update);
-    return g;
+    return super.hang(obj, x, z, faceRot, { opart, y: -3 });
   }
 
   dressUnder() {

@@ -18,7 +18,7 @@ const GRASS = {
   stripes: 0.0, scale: 0.26, flowers: 0.035,
 };
 
-class Mower {
+export class Mower {
   constructor(level, tile) {
     this.level = level;
     this.obj = P.makeLawnMower({ bag: true });
@@ -219,7 +219,7 @@ export class Level2 extends Level {
     this.apron = this.tile(apron.x, 0, apron.z);
   }
 
-  makeGarageDoor(x, z) {
+  makeGarageDoor(x, z, { hang = null } = {}) {
     const g = new THREE.Group();
     const frame = new THREE.Mesh(new THREE.BoxGeometry(0.98, 0.86, 0.06), new THREE.MeshStandardMaterial({ color: '#f4efe8', roughness: 0.6 }));
     frame.position.y = 0.55;
@@ -236,7 +236,8 @@ export class Level2 extends Level {
     }
     door.position.set(0, 0.12, 0.05);
     g.add(frame, dark, door);
-    this.prop(g, x, 0, z);
+    if (hang) this.hang(g, x, z, hang.rot, { opart: false, y: hang.y });
+    else this.prop(g, x, 0, z);
     for (const m of [frame, panel]) { m.castShadow = true; m.receiveShadow = true; }
     return { group: g, door };
   }
@@ -293,7 +294,7 @@ export class Level2 extends Level {
 
   parkMower(mower, onDone) {
     const from = mower.obj.position.clone();
-    const to = from.clone().add(new THREE.Vector3(0, 0, -0.9));
+    const to = from.clone().addScaledVector(mower.dir, 0.9);
     this.parking = { t: 0, from, to, onDone };
     mower.tile.occupant = null;
     mower.tile = null;
@@ -402,7 +403,7 @@ export class Level2 extends Level {
   }
 
   doorInfo() {
-    const target = this.apron.pos.clone().add(new THREE.Vector3(0, 0.06, -0.9));
+    const target = this.apron.footPos(new THREE.Vector3()).addScaledVector(this.garageDir ?? new THREE.Vector3(0, 0, -1), 0.9);
     return {
       target,
       open: () => {
